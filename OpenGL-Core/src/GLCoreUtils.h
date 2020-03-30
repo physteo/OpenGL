@@ -6,3 +6,4 @@
 #include "GLCore/Util/OrthographicCamera.h"
 #include "GLCore/Util/OrthographicCameraController.h"
 #include "GLCore/Util/OpenGLDebug.h"
+#include "GLCore/Util/load_image.h"
