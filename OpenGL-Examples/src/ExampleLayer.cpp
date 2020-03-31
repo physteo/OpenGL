@@ -3,19 +3,37 @@
 using namespace GLCore;
 using namespace GLCore::Utils;
 
-//extern "C"
-//{
-//	_declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
-//}
+extern "C"
+{
+	_declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+}
 
 ExampleLayer::ExampleLayer()
 	: m_CameraController(16.0f / 9.0f)
 {
+
+	m_TexturePaths = {
+		"assets/textures/diffuse_brickwall.jpg",
+		"assets/textures/normal_brickwall.jpg",
+		"assets/textures/specular_brickwall.jpg",
+		"assets/textures/diffuse_cube.png",
+		"assets/textures/normal_cube.png",
+		"assets/textures/specular_cube.png",
+		"assets/textures/diffuse_marble.png",
+		"assets/textures/normal_marble.png",
+		"assets/textures/specular_marble.png",
+		"assets/textures/specular_marble.png",
+		"assets/textures/specular_marble.png",
+		"assets/textures/specular_marble.png",
+		"assets/textures/specular_marble.png",
+		"assets/textures/specular_marble.png",
+		"assets/textures/specular_marble.png",
+		"assets/textures/specular_marble.png"
+	};
+
 	// Textures
 	LoadTextures();
-
 	m_StreamMode = BUFFER;
-
 }
 
 ExampleLayer::~ExampleLayer()
@@ -56,7 +74,6 @@ void ExampleLayer::LoadGeometry()
 
 	// Geometry circle
 	{
-		int resolution = 10;
 		float vertices[] =
 		{
 			-0.75f, -0.5f, 0.0f, 0.0f, 0.0f,
@@ -146,20 +163,23 @@ void ExampleLayer::OnAttach()
 
 	LoadGeometry();
 
-	m_InstanceData.resize(100);
+	m_InstanceData.resize(100000);
 	for (auto i = 0; i < m_InstanceData.size(); ++i)
 	{
 		m_InstanceData[i].displace.x = 16.0 * 0.33f * (-0.25f + 0.5f * rand() / (float(RAND_MAX) + 1));
 		m_InstanceData[i].displace.y = 9.0 *  0.33f * (-0.25f + 0.5f * rand() / (float(RAND_MAX) + 1));
 		m_InstanceData[i].displace.z = 0.0f;
-		m_InstanceData[i].displace.w = (rand() / (float(RAND_MAX) + 1)) < 0.5f ? 5.0f : 10.0f;
+		m_InstanceData[i].displace.w = (rand() / (float(RAND_MAX) + 1)) < 0.5f ? 100.0 : 200.0f;
 
 		m_InstanceData[i].color.x = rand() / (float(RAND_MAX) + 1);
 		m_InstanceData[i].color.y = rand() / (float(RAND_MAX) + 1);
 		m_InstanceData[i].color.z = rand() / (float(RAND_MAX) + 1);
 		m_InstanceData[i].color.w = 1.0f;
 
-		m_InstanceData[i].texUnit = int((rand() / (float(RAND_MAX) + 1)) * m_TexturePaths.size());
+		auto tex = int((rand() / (float(RAND_MAX) + 1)) * m_TexturePaths.size());
+		m_InstanceData[i].texUnitDiff = (tex + 0) % m_TexturePaths.size();//int((rand() / (float(RAND_MAX) + 1)) * m_TexturePaths.size());
+		m_InstanceData[i].texUnitSpec = (tex + 1) % m_TexturePaths.size();//int((rand() / (float(RAND_MAX) + 1)) * m_TexturePaths.size());
+		m_InstanceData[i].texUnitNorm = (tex + 2) % m_TexturePaths.size();//int((rand() / (float(RAND_MAX) + 1)) * m_TexturePaths.size());
 		m_InstanceData[i].vaoID = (i % 2 == 0) ? m_CircleVA : m_QuadVA;
 	}
 
@@ -216,7 +236,9 @@ void ExampleLayer::OnUpdate(Timestep ts)
 		Transform tr;
 		tr.position = instance.displace;
 		Material mat;
-		mat.diffuse = instance.texUnit;
+		mat.diffuse = instance.texUnitDiff;
+		mat.specular = instance.texUnitSpec;
+		mat.normal = instance.texUnitNorm;
 		renderer.submit(mesh, tr, mat);
 	}
 
@@ -259,6 +281,11 @@ void ExampleLayer::OnUpdate(Timestep ts)
 	m_AvgDuration = duration / std::chrono::microseconds(1);
 }
 
+float values_getter(void* data, int idx)
+{
+	return (float)(*((float*)data + idx));
+}
+
 void ExampleLayer::OnImGuiRender()
 {
 
@@ -266,12 +293,13 @@ void ExampleLayer::OnImGuiRender()
 	ImGui::Begin("Controls");
 	
 	ImGui::Text("Draw calls: %d", renderer.getNumDrawCalls());
+	ImGui::Text("Avg FlushBatch size: %f", renderer.getAvgFlushBatchSize());
 
-	static int maxTexUnit = 5;
+	static int maxTexUnit = 32;
 	ImGui::SliderInt("Max Texture Units", &maxTexUnit, 1, 64);
 	renderer.setMaxTextureUnits(maxTexUnit);
 
-	if(ImGui::Button("ImGui Demo"))
+	//if(ImGui::Button("ImGui Demo"))
 		ImGui::ShowDemoWindow();
 
 	static StreamMode selected = BUFFER;
@@ -291,6 +319,7 @@ void ExampleLayer::OnImGuiRender()
 	static float values[180] = { 0 };
 	static int values_offset = 0;
 	static double refresh_time = 0.0;
+
 	if (refresh_time == 0.0)
 		refresh_time = ImGui::GetTime();
 	while (refresh_time < ImGui::GetTime())
@@ -306,7 +335,7 @@ void ExampleLayer::OnImGuiRender()
 		for (int n = 0; n < IM_ARRAYSIZE(values); n++)
 			average += values[n];
 		average /= (float)IM_ARRAYSIZE(values);
-		char overlay[32];
+		char overlay[128];
 		sprintf(overlay, "avg time: %f microsec", average);
 		ImGui::PlotLines("", values, IM_ARRAYSIZE(values), values_offset, overlay, 0.0, 2.0 * average, ImVec2(0, 160));
 	}

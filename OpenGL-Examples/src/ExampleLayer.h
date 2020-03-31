@@ -10,7 +10,9 @@ struct InstanceData
 	unsigned int vaoID;
 	glm::vec4 displace;
 	glm::vec4 color;
-	float texUnit;
+	float texUnitDiff;
+	float texUnitSpec;
+	float texUnitNorm;
 };
 
 enum StreamMode
@@ -47,17 +49,7 @@ private:
 	GLuint m_CircleVA, m_CircleVB, m_CircleIB;
 	GLuint m_InstancesVB;
 
-	std::vector<std::string> m_TexturePaths = {
-		"assets/textures/diffuse_brickwall.jpg",
-		"assets/textures/normal_brickwall.jpg",
-		"assets/textures/specular_brickwall.jpg",
-		"assets/textures/diffuse_cube.png",
-		"assets/textures/normal_cube.png",
-		"assets/textures/specular_cube.png",
-		"assets/textures/diffuse_marble.png",
-		"assets/textures/normal_marble.png",
-		"assets/textures/specular_marble.png"
-	};
+	std::vector<std::string> m_TexturePaths;
 	std::vector<GLuint> m_TextureID;
 
 	glm::vec4 m_SquareBaseColor = { 0.8f, 0.2f, 0.3f, 1.0f };

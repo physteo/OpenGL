@@ -5,6 +5,9 @@
 
 #include "Transform.h"
 #include "Material.h"
+#include <map>
+
+#define TRICK
 
 struct VertexArray
 {
@@ -30,7 +33,7 @@ struct InstanceSpecs
 {
 	glm::vec4 modelMatrix;
 	glm::vec4 color;
-	float texUnit;
+	glm::vec4 material;
 
 	static void setBuffer(VertexArray& mesh, unsigned int buffer);
 };
@@ -38,7 +41,6 @@ struct InstanceSpecs
 class Renderer
 {
 public:
-
 	// To be used once (not every frame). Creates the buffer on the GPU for 
 	// storing data of instances. Retrieves the maximum number of texture units.
 	void init();
@@ -56,9 +58,10 @@ public:
 	// Issues all the draw calls collected with submit.
 	void flush();
 
-	void setShader(GLCore::Utils::Shader* shader) { m_shader = shader; }
-	void setTextures(std::vector<unsigned int>* textureID) { m_textureDatabase = textureID; }
+	inline void setShader(GLCore::Utils::Shader* shader) { m_shader = shader; }
+	inline void setTextures(std::vector<unsigned int>* textureID) { m_textureDatabase = textureID; }
 	inline unsigned getNumDrawCalls() const { return numDrawCalls; }
+	inline float getAvgFlushBatchSize() const { return avgFlushBatchSize; }
 	inline void setMaxTextureUnits(int maxTextureUnitsIn) { maxTextureUnits = maxTextureUnitsIn; }
 
 private:
@@ -70,7 +73,14 @@ private:
 	std::vector<unsigned int>* m_textureDatabase;
 	std::unordered_set<unsigned int> m_knownMeshes;
 
-	std::unordered_map<unsigned int, int> m_activeTextures;
+	
+#ifdef TRICK
+	std::vector<int> m_activeTexturesUnits;
+	unsigned int numActiveTextureUnits;
+	void clearTexUnits();
+#else
+	std::unordered_map<unsigned int, int> m_activeTexturesUnits;
+#endif
 	std::unordered_map<unsigned int, std::vector<InstanceSpecs>> m_toDraw;
 
 	unsigned int m_instancesBuffer;
@@ -78,4 +88,5 @@ private:
 
 	// stats
 	unsigned numDrawCalls;
+	float avgFlushBatchSize;
 };
