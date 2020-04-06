@@ -5,5 +5,5 @@
 
 struct Transform
 {
-	glm::vec4 position;
+	glm::mat4 model;
 };

@@ -1,25 +1,6 @@
-#include "Renderer.h"
+#include "FlushRenderer.h"
 
-void InstanceSpecs::setBuffer(VertexArray& vertexArray, unsigned int buffer)
-{
-	// TODO: the following assumes the next vertex attrib is 2. It should instead retrieve the correct number
-	// from the vao
-	glBindBuffer(GL_ARRAY_BUFFER, buffer);
-	glBindVertexArray(vertexArray.getID());
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceSpecs), (void*)offsetof(InstanceSpecs, modelMatrix));
-	glEnableVertexAttribArray(3);
-	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceSpecs), (void*)offsetof(InstanceSpecs, color));
-	glEnableVertexAttribArray(4);
-	glVertexAttribPointer(4, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceSpecs), (void*)offsetof(InstanceSpecs, material));
-	glVertexAttribDivisor(2, 1);
-	glVertexAttribDivisor(3, 1);
-	glVertexAttribDivisor(4, 1);
-	glBindVertexArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-}
-
-void Renderer::init()
+void FlushRenderer::init()
 {
 	// create instance buffer
 	glCreateBuffers(1, &m_instancesBuffer);
@@ -43,13 +24,13 @@ void Renderer::init()
 #endif
 }
 
-void Renderer::begin()
+void FlushRenderer::begin()
 {
 	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// clear data
-	//m_toDraw.clear();
+	//m_meshBatches.clear();
 #ifdef TRICK
 	clearTexUnits();
 #else
@@ -61,16 +42,17 @@ void Renderer::begin()
 	glUseProgram(m_shader->GetRendererID());
 }
 
-void Renderer::end()
+void FlushRenderer::end()
 {
 	avgFlushBatchSize = avgFlushBatchSize / float(numDrawCalls);
 	glUseProgram(0);
 }
 
-void Renderer::submit(VertexArray vertexArray, Transform transform, Material material)
+void FlushRenderer::submit(VertexArray vertexArray, Transform transform, Material material)
 {
 	InstanceSpecs is;
-	is.modelMatrix = transform.position;
+	is.modelMatrix = transform.model;
+	//is.normalMatrix = glm::transpose(glm::inverse(transform.model));
 	is.material[0] = float(material.diffuse );
 	is.material[1] = float(material.specular);
 	is.material[2] = float(material.normal  );
@@ -85,7 +67,7 @@ struct TextureQuery
 	bool found;
 };
 
-void Renderer::submit(VertexArray vertexArray, InstanceSpecs& instanceSpec)
+void FlushRenderer::submit(VertexArray vertexArray, InstanceSpecs& instanceSpec)
 {
 	// Collect new textures
 	TextureQuery newTexture[3] = { {0, true}, {0, true}, {0, true} };
@@ -137,11 +119,11 @@ void Renderer::submit(VertexArray vertexArray, InstanceSpecs& instanceSpec)
 	}
 
 	// Is this mesh already registered?
-	auto vaoData = m_toDraw.find(vertexArray.getID());
-	if (vaoData == m_toDraw.end())
+	auto vaoData = m_meshBatches.find(vertexArray);
+	if (vaoData == m_meshBatches.end())
 	{
 		// No: register mesh
-		auto inserted = m_toDraw.insert({ vertexArray.getID(), {} });
+		auto inserted = m_meshBatches.insert({ vertexArray, {} });
 		if (inserted.second)
 		{
 			// Is this mesh at least known by the renderer?
@@ -160,24 +142,32 @@ void Renderer::submit(VertexArray vertexArray, InstanceSpecs& instanceSpec)
 		}
 	}
 
-	pushData(&vaoData->second, instanceSpec);
+	pushInstance(&vaoData->second, instanceSpec);
 }
 
-void Renderer::flush()
+void FlushRenderer::draw(const GLCore::Utils::Shader& shader)
+{
+	flush();
+}
+
+void FlushRenderer::flush()
 {
 	glBindBuffer(GL_ARRAY_BUFFER, m_instancesBuffer);
-	for (auto it = m_toDraw.begin(); it != m_toDraw.end(); ++it)
+	for (auto it = m_meshBatches.begin(); it != m_meshBatches.end(); ++it)
 	{
-		const unsigned int& vaoID = it->first;
 		std::vector<InstanceSpecs>& data = it->second;
-		int numIndices = 6; // TODO: retrieve from VertexArray
-		glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(InstanceSpecs), (void*)&data[0], GL_DYNAMIC_DRAW);
-		glBindVertexArray(vaoID);
-		glDrawElementsInstanced(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0, data.size());
-		++numDrawCalls;
-		avgFlushBatchSize += data.size();
-		glBindVertexArray(0);
-		data.clear();
+		if (data.size() > 0)
+		{
+			const unsigned int& vaoID = it->first.getID();
+			int numIndices = it->first.getNumIndices();
+			glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(InstanceSpecs), (void*)&data[0], GL_DYNAMIC_DRAW);
+			glBindVertexArray(vaoID);
+			glDrawElementsInstanced(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0, data.size());
+			++numDrawCalls;
+			avgFlushBatchSize += data.size();
+			glBindVertexArray(0);
+			data.clear();
+		}
 	}
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
@@ -186,11 +176,9 @@ void Renderer::flush()
 #else
 	m_activeTexturesUnits.clear();
 #endif
-
-
 }
 
-void Renderer::registerTexture(unsigned int newTexID)
+void FlushRenderer::registerTexture(unsigned int newTexID)
 {
 #ifdef TRICK
 	int previousValue = m_activeTexturesUnits[newTexID];
@@ -215,7 +203,7 @@ void Renderer::registerTexture(unsigned int newTexID)
 #endif
 }
 
-void Renderer::pushData(std::vector<InstanceSpecs>* instanceVec, InstanceSpecs& instanceSpecs)
+void FlushRenderer::pushInstance(std::vector<InstanceSpecs>* instanceVec, InstanceSpecs& instanceSpecs)
 {
 	instanceVec->push_back(instanceSpecs);
 
@@ -227,7 +215,7 @@ void Renderer::pushData(std::vector<InstanceSpecs>* instanceVec, InstanceSpecs& 
 }
 
 #ifdef TRICK
-void Renderer::clearTexUnits()
+void FlushRenderer::clearTexUnits()
 {
 	m_activeTexturesUnits.resize(10000);
 	std::fill(m_activeTexturesUnits.begin(), m_activeTexturesUnits.end(), -1);

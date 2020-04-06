@@ -11,7 +11,7 @@ namespace GLCore::Utils {
 	public:
 		~Shader();
 
-		GLuint GetRendererID() { return m_RendererID; }
+		GLuint GetRendererID() const { return m_RendererID; }
 
 		static Shader* FromGLSLTextFiles(const std::string& vertexShaderPath, const std::string& fragmentShaderPath);
 	private:
